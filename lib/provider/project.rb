@@ -1,31 +1,31 @@
 module TaskMapper::Provider
   module Pivotal
+    # Project class for taskmapper-pivotal
+    #
+    #
     class Project < TaskMapper::Provider::Base::Project
-      API = PivotalAPI::Project
+      extend TaskMapper::Provider::PivotalAccessor
 
       # Public: Creates a new Project based on passed arguments
       #
       # args - hash of Project values
       #
       # Returns a new Project
-      def initialize(*args)
-        super(*args)
-        self.id = self.id.to_i
-      end
-
-      # Public: No-op since Pivotal doesn't allow editing of project attributes.
-      #
-      # Returns true
-      def save
-        warn 'Warning: Pivotal does not allow editing of project attributes.'
-        true
-      end
-
-      # Public: Attempts to destroy the Project representation in Pivotal
-      #
-      # Returns boolean indicating whether or not the project was destroyed
-      def destroy
-        self.system_data[:client].destroy.is_a?(Net::HTTPOK)
+      def initialize(*object)
+        if object.first
+          object = object.first
+          unless object.is_a? Hash
+            @system_data = {:client => object}
+            hash = {:id => object.id,
+                    :name => object.name,
+                    :description => object.description,
+                    :updated_at => object.updated_at,
+                    :created_at => object.created_at}
+          else
+            hash = object
+          end
+          super(hash)
+        end
       end
 
       # Public: Copies tickets/comments from one Project onto another.
@@ -44,6 +44,21 @@ module TaskMapper::Provider
             sleep 1
           end
         end
+      end
+
+      def self.find_by_attributes(attributes = {})
+        search_by_attribute(self.find_all, attributes)
+      end
+
+      def self.find_all
+        pivotal_client.projects.map { |project|
+          Project.new project
+        }
+      end
+
+      def self.find_by_id(id)
+        project = pivotal_client.project(id)
+        Project.new project unless project.nil?
       end
     end
   end

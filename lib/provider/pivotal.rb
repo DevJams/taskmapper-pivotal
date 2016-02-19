@@ -1,59 +1,49 @@
 module TaskMapper::Provider
+  module PivotalAccessor
+
+    def pivotal_client
+      Thread.current['TaskMapper::Provider::PivotalAccessor.pivotal']
+    end
+
+    def pivotal_client=(pivotal_client)
+      Thread.current['TaskMapper::Provider::PivotalAccessor.pivotal'] = pivotal_client
+    end
+
+  end
+
+
   # This is the Pivotal Tracker Provider for taskmapper
   module Pivotal
     include TaskMapper::Provider::Base
-    TICKET_API = PivotalAPI::Story
-    PROJECT_API = PivotalAPI::Project
 
-    class << self
-      attr_accessor :token, :username, :password
-
-      def new(auth = {})
-        TaskMapper.new(:pivotal, auth)
-      end
+    def self.new(auth = {})
+      TaskMapper.new(:pivotal, auth)
     end
-
+    
     def authorize(auth = {})
       @authentication ||= TaskMapper::Authenticator.new(auth)
       auth = @authentication
-
-      check_auth_params auth
-      configure auth
-    end
-
-    def provider
-      TaskMapper::Provider::Pivotal
-    end
-
-    def configure(auth)
-      if auth.token
-        PivotalAPI.token = auth.token
-        provider.token = auth.token
-      elsif auth.username && auth.password
-        PivotalAPI.authenticate auth.username, auth.password
-        provider.username = auth.username
-        provider.password = auth.password
+      
+      self.pivotal_client = TrackerApi::Client.new(token: auth.access_token)
+      begin
+        self.pivotal_client.me
+        @valid_auth = true
+      rescue
+        @valid_auth = false
       end
     end
 
     def valid?
-      PROJECT_API.find(:first)
-      true
-    rescue ActiveResource::UnauthorizedAccess
-      false
+      @valid_auth
     end
 
-    private
-    def check_auth_params(auth)
-      unless auth.token || auth.username
-        msg = "Please provide a token or username/password for authentication"
-        raise TaskMapper::Exception.new msg
-      end
-
-      if auth.username && !auth.password
-        msg = "Please provide a password for authentication"
-        raise TaskMapper::Exception.new msg
-      end
+    def pivotal_client
+      Thread.current['TaskMapper::Provider::PivotalAccessor.pivotal']
     end
+
+    def pivotal_client=(pivotal_client)
+      Thread.current['TaskMapper::Provider::PivotalAccessor.pivotal'] = pivotal_client
+    end
+    
   end
 end

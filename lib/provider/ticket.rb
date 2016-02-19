@@ -1,129 +1,158 @@
 module TaskMapper::Provider
   module Pivotal
     class Ticket < TaskMapper::Provider::Base::Ticket
-      API = PivotalAPI::Story
+        extend TaskMapper::Provider::PivotalAccessor
 
-      ALLOWED_STATES = ['new', 'open', 'resolved', 'hold', 'invalid'].freeze
+      def initialize(*object)
+        if object.first
+          object = object.first
+          
+          
+          unless object.is_a? Hash
+            @system_data = {:client => object}
+            
+            
+            hash = {
+              :id => object.id,
+              :issuetype => object.kind.downcase,
+            #   :parent => object.label, #default
+              :title => object.name,
+              :created_at => object.created_at,
+              :updated_at => object.updated_at,
+              :description => object.description,
+              }
+            if object.kind.downcase == "epic"
+              hash[:full_id] = object.label.id
+            else
+              unless object.estimate.nil?
+                hash[:estimate] = object.estimate.prettify.to_s
+              end
+              unless object.current_state.nil?
+                hash[:status] = object.current_state 
+              end
+              if object.labels.any?
+                hash[:parent] = object.labels.first.id 
+              end
+            end
+            
+          else
+            hash = object
+          end
+
+          super(hash)
+        end
+      end
+
+
+      def self.create(*options)
+        options = options.first if options.is_a? Array
+	    project = pivotal_client.project(options[:project_id])
+         
+        if options.key 'issuetype' && options[:issuetype] == "epic" 
+          opts = {
+            :name => options[:title],
+            :description => options[:description]
+          }
+          
+          begin
+            epic = project.create_epic opts
+            self.new epic
+          rescue TrackerApi::Error => e
+            response = e.instance_variable_get(:@response) 
+            body = response[:body]
+            msg = "Pivotal Error: #{body['general_problem']}"
+            
+            raise TaskMapper::Exception.new(msg)
+          end
+            
+        else
+          opts = {
+            :name => options[:title],
+            :description => options[:description]
+          }
+          
+          opts[:estimate] = options[:estimate] if options.has_key? :estimate
+          opts[:current_state] = options[:status] if options.has_key? :status
+
+          unless options.has_key? :parent && !options[:parent].blank?
+            parent = options[:parent]
+
+            opts[:label_ids] = [parent.to_i] unless parent.nil?
+          end
+          
+          begin
+            story = project.create_story opts
+
+            self.new story
+          rescue TrackerApi::Error => e
+            response = e.instance_variable_get(:@response) 
+            body = response[:body]
+            msg = "Pivotal Error: #{body['general_problem']}"
+            
+            raise TaskMapper::Exception.new(msg)
+          end
+        end
+      end
+
 
       # Public: Saves a Ticket/Story to Pivotal Tracker
       #
       # Returns a boolean indicating whether or not the Story saved
       def save
-        story = @system_data[:client]
-        self.keys.each do |key|
-          if self.send(key) != story.send(key)
-            story.send key + '=', self.send(key)
-          end
+        if @system_data and (story = @system_data[:client]) and story.respond_to?(:attributes)
+            story.name = title if self.send(:title) != story.send(:name)
+            story.description = description if self.send(:description) != story.send(:description)
+            if issuetype == "story"
+                story.estimate = estimate if self.send(:estimate) != story.send(:estimate)
+                story.current_state = status if self.send(:status) != story.send(:current_state)
+            end
         end
-        story.save
+        begin
+          story.save
+        rescue TrackerApi::Error => e
+          response = e.instance_variable_get(:@response) 
+          body = response[:body]
+          msg = "Pivotal Error: #{body['general_problem']}"
+            
+          raise TaskMapper::Exception.new(msg)
+        end
       end
 
       # Public: Destroys the Ticket/Story in Pivotal Tracker
       #
       # Returns whether or not the Story was destroyed
       def destroy
-        @system_data[:client].destroy.is_a?(Net::HTTPOK)
+        @system_data[:client].delete #.destroy.is_a?(Net::HTTPOK)
       end
 
-      def project_id
-        self.prefix_options[:project_id]
+      def self.find_by_attributes(project_id, attributes = {})
+        search_by_attribute(self.find_all(project_id), attributes)
       end
 
-      def requestor
-        self.requested_by
+      def self.find_by_id(project_id, id)
+        self.find_all(project_id).find { |ticket| ticket.id == id }
       end
 
-      def title
-        self.name
-      end
-
-      def title=(title)
-        self.name=title
-      end
-
-      def status
-        self.current_state
-      end
-
-      def priority
-        self.estimate
-      end
-
-      def resolution
-        self.current_state
-      end
-
-      def assignee
-        self.owned_by
-      end
-
-      def close(resolution = 'resolved')
-        resolution = 'resolved' unless ALLOWED_STATES.include?(resolution)
-        ticket = PivotalAPI::Ticket.find(
-          self.id,
-          :params => { :project_id => project_id }
-        )
-        ticket.state = resolution
-        ticket.save
-      end
-
-      class << self
-        def find_by_attributes(project_id, attributes = {})
-          date_to_search = attributes[:updated_at] || attributes[:created_at]
-          tickets = []
-          if date_to_search
-            tickets = search_by_datefields(project_id, date_to_search)
-          else
-            tickets += API.find(
-              :all,
-              :params => {
-                :project_id => project_id,
-                :filter => filter(attributes)
-              }
-            ).collect { |ticket|
-              self.new ticket.attributes.merge(:project_id => project_id)
-            }.flatten
-          end
-
-          tickets
+      def self.find_all(project_id)
+        project = pivotal_client.project(project_id)
+        
+        epics = project.epics.map do |ticket|
+          self.new ticket
         end
 
-        def filter(attributes = {})
-          attributes.collect { |k, v| filter << "#{k}:#{v}" }.join(' ')
+        
+        stories = project.stories.map do |ticket|
+          self.new ticket
         end
-
-        def create(options)
-          super translate(options,
-            {
-              :title => :name,
-              :requestor => :requested_by,
-              :status => :current_state,
-              :estimate => :priority,
-              :assignee => :owned_by
-            }
-          )
-        end
-
-        private
-        def search_by_datefields(project_id, date_to_search)
-          date_to_search = date_to_search.strftime("%Y/%m/%d")
-          PivotalAPI::Activity.find(
-            :all,
-            :params => {
-              :project_id => project_id,
-              :occurred_since_date => date_to_search
-            }
-          ).collect do |activity|
-            activity.stories.map do |story|
-              self.new story.attributes.merge(:project_id => project_id)
-            end
-          end.flatten
-        end
-
-        def translate(hash, mapping)
-          Hash[hash.map { |k, v| [mapping[k] ||= k, v]}]
-        end
+        epics + stories
       end
+
     end
+  end
+end
+
+class Float
+  def prettify
+    to_i == self ? to_i : self
   end
 end

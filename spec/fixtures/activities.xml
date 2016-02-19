@@ -11,7 +11,7 @@
     <stories type="array">
       <story>
         <id type="integer">14398445</id>
-        <url>http://www.pivotaltracker.com/services/v3/projects/136096/stories/14398445</url>
+        <url>http://www.pivotaltracker.com/services/v5/projects/136096/stories/14398445</url>
         <name>Let's see with another story</name>
         <story_type>feature</story_type>
         <current_state>unscheduled</current_state>
@@ -29,7 +29,7 @@
     <stories type="array">
       <story>
         <id type="integer">14389955</id>
-        <url>http://www.pivotaltracker.com/services/v3/projects/136096/stories/14389955</url>
+        <url>http://www.pivotaltracker.com/services/v5/projects/136096/stories/14389955</url>
         <name>Hello, This is clutch</name>
         <story_type>feature</story_type>
         <current_state>unscheduled</current_state>

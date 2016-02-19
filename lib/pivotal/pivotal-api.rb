@@ -28,8 +28,8 @@ module PivotalAPI
   end
 
   class Base < ActiveResource::Base
-    self.site = 'https://www.pivotaltracker.com/services/v3/'
-    self.format = ActiveResource::Formats::XmlFormat
+    self.site = 'https://www.pivotaltracker.com/services/v5/'
+    self.format = ActiveResource::Formats::JsonFormat
     def self.inherited(base)
       PivotalAPI.resources << base
       super
@@ -59,6 +59,7 @@ module PivotalAPI
 
   class Story < Base
     self.site += 'projects/:project_id/'
+    
     schema do
       attribute 'id', :integer
       attribute 'project_id', :integer
@@ -71,11 +72,39 @@ module PivotalAPI
       attribute 'requested_by', :string
       attribute 'owned_by', :string
       attribute 'labels', :string
+      attribute 'label_ids', :string
 
       # Use string for unsupported types per ActiveResource documentation
       attribute 'created_at', :string
       attribute 'updated_at', :string
       attribute 'notes', :string
+    end
+    def self.collection_path(prefix_options = {}, query_options = nil)
+        p 'collection_path'
+        p "#{site.path}/Stories/#{query_string(query_options)}"
+    end
+    
+    def self.instantiate_record(record, prefix_option = {})
+        p 'instantiate_record'
+        p self.site
+    end
+  end
+  
+  class Epic < Base
+    self.site += 'projects/:project_id/'
+    schema do
+      attribute 'id', :integer
+      attribute 'project_id', :integer
+      attribute 'url', :string
+      attribute 'description', :string
+      attribute 'name', :string
+      attribute 'owned_by', :string
+      attribute 'label', :string
+      attribute 'label_id', :integer
+
+      # Use string for unsupported types per ActiveResource documentation
+      attribute 'created_at', :string
+      attribute 'updated_at', :string
     end
   end
 
