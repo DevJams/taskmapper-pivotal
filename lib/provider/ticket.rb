@@ -11,7 +11,6 @@ module TaskMapper::Provider
           unless object.is_a? Hash
             @system_data = {:client => object}
             
-            
             hash = {
               :id => object.id,
               :issuetype => object.kind.downcase,
@@ -48,7 +47,7 @@ module TaskMapper::Provider
         options = options.first if options.is_a? Array
 	    project = pivotal_client.project(options[:project_id])
          
-        if options.key 'issuetype' && options[:issuetype] == "epic" 
+        if options[:issuetype] == "epic" 
           opts = {
             :name => options[:title],
             :description => options[:description]
