@@ -19,6 +19,7 @@ module TaskMapper::Provider
               :created_at => object.created_at,
               :updated_at => object.updated_at,
               :description => object.description,
+              :url => object.url
               }
             if object.kind.downcase == "epic"
               hash[:full_id] = object.label.id
