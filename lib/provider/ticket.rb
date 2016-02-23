@@ -76,8 +76,7 @@ module TaskMapper::Provider
 
           unless options.has_key? :parent && !options[:parent].blank?
             parent = options[:parent]
-
-            opts[:label_ids] = [parent.to_i] unless parent.nil?
+            opts[:label_ids] = parent unless parent.nil?
           end
           
           begin
