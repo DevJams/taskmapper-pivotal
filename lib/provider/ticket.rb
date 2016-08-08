@@ -6,11 +6,11 @@ module TaskMapper::Provider
       def initialize(*object)
         if object.first
           object = object.first
-          
-          
+
+
           unless object.is_a? Hash
             @system_data = {:client => object}
-            
+
             hash = {
               :id => object.id,
               :issuetype => object.kind.downcase,
@@ -28,13 +28,13 @@ module TaskMapper::Provider
                 hash[:estimate] = object.estimate.prettify.to_s
               end
               unless object.current_state.nil?
-                hash[:status] = object.current_state 
+                hash[:status] = object.current_state
               end
               if object.labels.any?
-                hash[:parent] = object.labels.first.id 
+                hash[:parent] = object.labels.first.id
               end
             end
-            
+
           else
             hash = object
           end
@@ -47,30 +47,30 @@ module TaskMapper::Provider
       def self.create(*options)
         options = options.first if options.is_a? Array
 	    project = pivotal_client.project(options[:project_id])
-         
-        if options[:issuetype] == "epic" 
+
+        if options[:issuetype] == "epic"
           opts = {
             :name => options[:title],
             :description => options[:description]
           }
-          
+
           begin
             epic = project.create_epic opts
             self.new epic
           rescue TrackerApi::Error => e
-            response = e.instance_variable_get(:@response) 
+            response = e.instance_variable_get(:@response)
             body = response[:body]
             msg = "Pivotal Error: #{body['general_problem']}"
-            
+
             raise TaskMapper::Exception.new(msg)
           end
-            
+
         else
           opts = {
             :name => options[:title],
             :description => options[:description]
           }
-          
+
           opts[:estimate] = options[:estimate] if options.has_key? :estimate
           opts[:current_state] = options[:status] if options.has_key? :status
 
@@ -78,16 +78,16 @@ module TaskMapper::Provider
             parent = options[:parent]
             opts[:label_ids] = parent unless parent.nil?
           end
-          
+
           begin
             story = project.create_story opts
 
             self.new story
           rescue TrackerApi::Error => e
-            response = e.instance_variable_get(:@response) 
+            response = e.instance_variable_get(:@response)
             body = response[:body]
             msg = "Pivotal Error: #{body['general_problem']}"
-            
+
             raise TaskMapper::Exception.new(msg)
           end
         end
@@ -103,16 +103,21 @@ module TaskMapper::Provider
             story.description = description if self.send(:description) != story.send(:description)
             if issuetype == "story"
                 story.estimate = estimate if self.send(:estimate) != story.send(:estimate)
-                story.current_state = status if self.send(:status) != story.send(:current_state)
+                if self.send(:status) != story.send(:current_state)
+                  story.current_state = status
+                  if story.send(:accepted_at).present? && self.send(:status).to_s != "accepted"
+                    story.accepted_at = nil
+                  end
+                end
             end
         end
         begin
           story.save
         rescue TrackerApi::Error => e
-          response = e.instance_variable_get(:@response) 
+          response = e.instance_variable_get(:@response)
           body = response[:body]
           msg = "Pivotal Error: #{body['general_problem']}"
-            
+
           raise TaskMapper::Exception.new(msg)
         end
       end
@@ -134,12 +139,12 @@ module TaskMapper::Provider
 
       def self.find_all(project_id)
         project = pivotal_client.project(project_id)
-        
+
         epics = project.epics.map do |ticket|
           self.new ticket
         end
 
-        
+
         stories = project.stories.map do |ticket|
           self.new ticket
         end
