@@ -12,6 +12,7 @@ module TaskMapper::Provider
       #
       # Returns a new Project
       def initialize(*object)
+        @pivotal_client = self.class.pivotal_client if self.class.respond_to?(:pivotal_client)
         if object.first
           object = object.first
           unless object.is_a? Hash
@@ -45,6 +46,13 @@ module TaskMapper::Provider
           end
         end
       end
+
+      def iterations(options={})
+        options = options.with_indifferent_access
+        @iterations = nil if options[:reload]
+        @iterations ||= @pivotal_client.get("/projects/#{self.id}/iterations").body
+      end
+
 
       def self.find_by_attributes(attributes = {})
         search_by_attribute(self.find_all, attributes)
