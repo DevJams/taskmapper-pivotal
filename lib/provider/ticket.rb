@@ -30,7 +30,7 @@ module TaskMapper::Provider
               unless object.current_state.nil?
                 hash[:status] = object.current_state
               end
-              if object.labels.any?
+              if (object.labels || []).any?
                 hash[:parent] = object.labels.first.id
               end
             end
